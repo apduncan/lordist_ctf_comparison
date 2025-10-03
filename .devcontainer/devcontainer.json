@@ -1,0 +1,21 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/miniconda
+{
+	"name": "lordist_ctf_comparison",
+    // "image": "ghcr.io/apduncan/cvanmf_analysis:revision",
+	"build": {
+		"context": "./",
+		"dockerfile": "Dockerfile"
+	},
+    "remoteUser": "mambauser",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"REditorSupport.r",
+				"ms-toolsai.jupyter",
+				"ms-python.python"
+			]
+		}
+	}
+}

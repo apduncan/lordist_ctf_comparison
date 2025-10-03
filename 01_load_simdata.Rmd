@@ -1,0 +1,169 @@
+```{r setup}
+library(LorDist)
+library(readr)
+library(dplyr)
+library(logger)
+library(ggplot)
+```
+
+# Read simulated data from LorDist
+
+CTF is implemented in python.
+To make easier to load the simulated data used to evaluate CTF in python,
+this notebook converts it to a text format.
+
+## Load
+```{r load}
+loaded_vars <- load("data/source/simdata.RData")
+loaded_vars
+```
+
+## Summarise metadata
+```{r show-meta}
+SimSample_information |> head()
+```
+Simple structure for metadata, can be output as it is
+
+```{r write_meta}
+SimSample_information |>
+    write_delim(
+        file.path("data", "derived", "lordist_sim_meta.tsv"),
+        delim = "\t"
+    )
+```
+
+## Summarise simulated data
+```{r show-matrix}
+SimData.mat |> as.matrix() |> heatmap(Colv=NA, Rowv=NA)
+```
+
+Organise this by the phenotype label
+```{r show-matrix-phenotype}
+sorted_meta <- SimSample_information |>
+    arrange(Label, SubjectID, Timepoint)
+sorted_mat <- SimData.mat[,sorted_meta |> pull(SampleID)]
+sorted_mat |>
+    as.matrix() |>
+    heatmap(
+        Colv = NA,
+        Rowv = TRUE,
+        ColSideColors = ifelse(
+            (sorted_meta |> pull(Label)) == 1,
+            "blue",
+            "orange"
+        )
+    )
+```
+
+Farly clear difference between phenotypes (Label) evident.
+The row cluster seems to also quite clearly indicate the three taxa types
+described in the simulation methods.
+
+## Simulation methods
+The provided simulated matrix matches the method description quite well.
+However, methods describing the simulations imply there were both
+even (t=1, 2, 3 .. 10) and uneven (t=1, 5.4, 9.5, ... 10).
+Given the metadata, I will assume that here we are dealing with the even
+simulation.
+
+Sparsity was created by randomly setting a proportion of the values to 0.
+
+It's unclear to me whether multiple source matrices were generated or one,
+with repeats of the experiment being multiple different randomised sparsities.
+For my experiments, I have chosen to keep the single source matrix from GitHub,
+and do multiple sparsifications.
+
+## Make sparse matrices
+We would like to use same matrices for evaluation of both LorDist and
+CTF.
+The data is sparsified here, and then load by scripts for LorDist and CTF.
+
+```{r}
+set.seed(4298)
+
+sparsity <- function(mat) {
+    mat_n <- dim(mat)[1] * dim(mat)[2]
+    return(sum(mat == 0) / mat_n)
+}
+
+random_sparse <- function(mat, prop) {
+    start_sparse <- sparsity(mat)
+    mat_s <- mat
+    zero_n <- ceiling(length(mat) * prop)
+    zero_idx <- sample(
+        1:length(mat_s), 
+        zero_n,
+        replace = FALSE
+    )
+    mat_s[zero_idx] <- 0
+
+    # Report sparsity
+    achieved_sparse <- sparsity(mat_s)
+    log_info(
+        "Starting sparsity: {start_sparse} | Requested sparsity: {prop} | Achieved sparsity: {achieved_sparse}")
+
+    return(
+        list(
+            requested_sparsity = prop,
+            achieved_sparsity = achieved_sparse,
+            matrix = mat_s
+        )
+    )
+}
+
+# Make and output tables
+sim_grid <- expand.grid(
+    i = seq(1:100),
+    requested_sparsity = seq(from = 0, to = 0.7, by = 0.1)
+)
+
+pth_sim_base <- "./data/simulated"
+sim_res <- sim_grid |> pmap(\(...) {
+    row <- tibble(...)
+    res <- random_sparse(SimData.mat, row$requested_sparsity)
+
+    # Write to tab-separated form so can load in python or R
+    dir_sim <- file.path(
+        pth_sim_base,
+        glue("sparsity_{res$requested_sparsity}")
+    )
+    dir.create(dir_sim, recursive = TRUE)
+    pth_sim <- file.path(dir_sim, glue("{row$i}.tsv"))
+    write.table(
+        res$matrix,
+        pth_sim,
+        sep = "\t"
+    )
+    row$achieved_sparsity <- res$achieved_sparsity
+    row$output <- pth_sim
+    return(row)
+}) |>
+    bind_rows()
+sim_res |> write_delim(file.path(pth_sim_base, "metadata.tsv"), delim = "\t")
+```
+
+It is interesting to note that the source matrix is quite sparse (40%), and
+further sparsification using the procedure implemented here (and I believe as
+described in the paper) results in much higher sparsity.
+At 60%, the upper limit at which the paper reports LorDist retains power,
+the empirically observed sparsity is about 75%.
+
+### Plots of sparsity
+```{r}
+plt_sparsity <- sim_res |>
+    ggplot(
+        aes(
+            x = requested_sparsity,
+            y = achieved_sparsity
+        )
+    ) +
+    geom_point() +
+    geom_abline() +
+    xlab("Requested Sparsity") +
+    ylab("Observed Sparsity") +
+    xlim(0, 0.8) +
+    ylim(0, 0.8) +
+    ggtitle("Sparsity of matrix is higher than reported")
+ggsave("plots/plt_sparsity.pdf", plt_sparsity, height = 4, width = 4)
+plt_sparsity
+```

@@ -1,0 +1,8 @@
+channels:
+  - https://repo.prefix.dev/bioconda/linux-64
+  - https://repo.prefix.dev/bioconda/noarch
+  - https://repo.prefix.dev/conda-forge/linux-64
+  - https://repo.prefix.dev/conda-forge/noarch
+dependencies:
+ - python=3.9.*
+ - pip
