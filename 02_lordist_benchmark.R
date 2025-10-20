@@ -4,13 +4,35 @@ library(readr)
 library(vegan)
 library(tibble)
 library(logger)
+library(tidyverse)
+library(LorDist)
+library(logger)
 
-sparsity_dir <- file.path("data", "simulated")
-simulation_metadata <- read_delim(
-  file.path(sparsity_dir, "metadata.tsv")
-)
+show_usage <- function() {
+  log_info("Run LorDist benchmarks for simulated data.")
+  log_info("Usage:")
+  log_info("02_lordist_benchmark.R path/to/simulation_metdata.tsv path/to/subject_metadata.tsv path/to_output.tsv")
+}
+
+args <- commandArgs(trailingOnly = TRUE)
+
+if(args[1] %in% c("-h", "h", "--help", "help")) {
+  show_usage()
+  quit()
+}
+if(length(args) != 3) {
+  show_usage()
+  log_fatal("All arguments must be provided")
+  quit()
+}
+
+simulation_metadata <- args[[1]]
+subject_metadata <- args[[2]]
+output_location <- args[[3]]
+
+simulation_metadata <- read_delim(simulation_metadata)
 sample_metadata <- read.table(
-  file.path("data", "derived", "lordist_sim_meta.tsv"),
+  subject_metadata,
   sep = "\t",
   header = TRUE
 )
@@ -45,9 +67,7 @@ run_lordist <- function(...) {
 set.seed(4298)
 # Run for all simulated matrices
 sim_res <- simulation_metadata |>
-  # All 0 sparsity tables are the same, no need to test iterations
-  filter(requested_sparsity > 0) |>
   pmap(run_lordist) |>
   bind_rows()
 sim_res |> 
-  write_delim("results/simulated/lordist.tsv", delim = "\t")
+  write_delim(output_location, delim = "\t")

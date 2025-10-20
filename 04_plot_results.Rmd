@@ -1,0 +1,39 @@
+```{r setup}
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(ggpubr)
+```
+
+# Figures for LorDist and CTF benchmarks
+
+```{r load-and-format}
+df_ctf = read_delim("results/simulated/ctf.tsv")
+df_lordist = read_delim("results/simulated/lordist.tsv")
+
+# Harmonise for plotting
+df_ctf_sample_long <- df_ctf |>
+    select(sample_f, sample_p, output, requested_sparsity, achieved_sparsity) |>
+    rename(pval = sample_p, fval = sample_f) |>
+    mutate(method = "CTF - Sample Distances")
+df_ctf_subject_long <- df_ctf |>
+    select(subject_f, subject_p, output, requested_sparsity, achieved_sparsity) |>
+    rename(pval = subject_p, fval = subject_f) |>
+    mutate(method = "CTF - Subject Ordination")
+df_lordist_long <- df_lordist |>
+    select(fval, pval, output, requested_sparsity, achieved_sparsity) |>
+    mutate(method = "LorDist")
+df_long <- rbind(df_ctf_sample_long, df_ctf_subject_long, df_lordist_long) |>
+    mutate(requested_sparsity = as.factor(requested_sparsity))
+df_long |> head()
+```
+
+Make boplots comparing p and f values
+
+```{r plot}
+plt_p <- ggplot(
+    df_long,
+    aes(x = requested_sparsity, y = pval, fill = method)
+) +
+geom_boxplot()
+```

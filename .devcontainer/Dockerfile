@@ -10,7 +10,8 @@ RUN install2.r --error \
     devtools \
     ggplot2 \
     dplyr \
-    readr
+    readr \
+    logger
 
 RUN R -e "devtools::install_github('https://github.com/XinheQi/LorDist')"
 

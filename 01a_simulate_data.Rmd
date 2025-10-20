@@ -1,0 +1,296 @@
+# Generate new simulate data
+```{r setup}
+library(tidyverse)
+library(ggplot2)
+library(logger)
+library(glue)
+```
+
+Our first benchmarks (`01a`) used the single simulated table provided in the 
+LorDist repository.
+However, it seems likely methods were evaluated multiple tables generated 
+by the described processes, with different levels of sparsity added.
+
+Here we reproduce the simulation process described, and generate 100 
+tables, applying the scale of sparsity to each table.
+
+These are output in a similar format to the other multiple sparsification
+tests.
+
+## Define functions
+```{r simulation-functions}
+
+taxon_one <- function(t, case) {
+    # Highly abundant across all time for both groups
+    return(
+        10 + rnorm(length(t), 0, 3)
+    )
+}
+
+taxon_two <- function(t, case) {
+    # Periodic pattern, with increased amplitude in case
+    b <- sin((pi * t)+(pi/2))
+    noise <- rnorm(length(t), 0, 5)
+    if(case) {
+        # Calculate in parts to keep clearer in my head
+        a <- pi/(1+exp(-t + 4))
+        return(
+            10 * (
+                (a * b) + 10
+            ) + noise
+        )
+    } else {
+        return((10 * (b + 10)) + noise)
+    }
+}
+
+taxon_three <- function(t, case) {
+    # Abundance remains low and steady in the control group, while in the case 
+    # group, it increases over time in a sigmoid-like pattern
+    noise <- rnorm(length(t), 0, 9)
+    if(case) {
+        return(40 * ((1/(1+exp(-t+5))) + 0.25) + noise)
+    } else {
+        return(30 + noise)
+    }
+}
+```
+
+A quick visualisation to check our functions are working roughly as intened
+
+```{r}
+df_one <- seq(1:100) |>
+    map(\(x) {
+        taxon_one(seq(1:10), FALSE) |> as.data.frame() |> t() |> as.data.frame()
+    }) |>
+    bind_rows() |>
+    pivot_longer(V1:V10, names_to = "timepoint", values_to = "abd") |>
+    mutate(taxon = "One", tax_grp = "One")
+df_two_case <- seq(1:100) |>
+    map(\(x) {
+        taxon_two(seq(1:10), TRUE) |> as.data.frame() |> t() |> as.data.frame()
+    }) |>
+    bind_rows() |>
+    pivot_longer(V1:V10, names_to = "timepoint", values_to = "abd") |>
+    mutate(taxon = "Two - Case", tax_grp = "Two")
+df_two_ctrl <- seq(1:100) |>
+    map(\(x) {
+        taxon_two(seq(1:10), FALSE) |> as.data.frame() |> t() |> as.data.frame()
+    }) |>
+    bind_rows() |>
+    pivot_longer(V1:V10, names_to = "timepoint", values_to = "abd") |>
+    mutate(taxon = "Two - Control", tax_grp = "Two")
+df_three_case <- seq(1:100) |>
+    map(\(x) {
+        taxon_three(seq(1:10), TRUE) |> as.data.frame() |> t() |> as.data.frame()
+    }) |>
+    bind_rows() |>
+    pivot_longer(V1:V10, names_to = "timepoint", values_to = "abd") |>
+    mutate(taxon = "Three - Case", tax_grp = "Three")
+df_three_ctrl <- seq(1:100) |>
+    map(\(x) {
+        taxon_three(seq(1:10), FALSE) |> as.data.frame() |> t() |> as.data.frame()
+    }) |>
+    bind_rows() |>
+    pivot_longer(V1:V10, names_to = "timepoint", values_to = "abd") |>
+    mutate(taxon = "Three - Control", tax_grp = "Three")
+df_long <- rbind(
+    df_one, df_two_ctrl, df_two_case, df_three_case, df_three_ctrl) |>
+    mutate(
+        timepoint_num = gsub("V", "", timepoint) |> as.numeric()
+    )
+
+df_long
+```
+
+```{r}
+plt_taxa <- ggplot(
+    df_long,
+    aes(x = timepoint_num, y = abd, fill = taxon, color=taxon)
+) +
+    geom_point() +
+    geom_smooth() +
+    facet_wrap(~tax_grp, ncol=1, scales="free_y") +
+    ylab("Abundance") +
+    xlab("Timepoint") +
+    ggtitle("Taxa simulation outputs")
+    ggsave("results/simulated/function_check.png", plt_taxa)
+plt_taxa
+```
+
+These look as described in the paper, so we can proceed to make some simulated
+communities
+
+## Simulate communities
+
+> Each simulation consists of 100 subjects (50 cases and 50 controls), sampled 
+> at 10 time points, and measured across 200 microbial features. Features are 
+> randomly assigned to one of three predefined taxa types
+
+```{r}
+
+get_abundance <- function(tax_type, case, t = seq(1: 10)) {
+    # Make abundance vector for a single taxa for a single person
+    if(tax_type == 1) {
+        return(taxon_one(t, case))
+    }
+    if(tax_type == 2) {
+        return(taxon_two(t, case))
+    }
+    if(tax_type == 3) {
+        return(taxon_three(t, case))
+    }
+}
+
+get_participant <- function(feat_types, case, t = seq(1:10)) {
+    # Make abundance table for all taxa for a single person
+    all_tax <- feat_types |>
+        map(\(x) {
+            get_abundance(x, case, t) |>
+            as.data.frame() |>
+            t() |>
+            as.data.frame()
+        }) |>
+        bind_rows()
+    rownames(all_tax) <- paste("Feature", seq(1:length(feat_types)), sep = "")
+    names(all_tax) <- t
+    return(all_tax)
+}
+
+get_dataset <- function(
+    features = 200,
+    case_subjects = 50,
+    control_subjects = 50,
+    samples = 10
+) {
+    # Make a single simulated dataset with no sparsity added
+    feat_types <- sample(c(1, 2, 3), 200, replace=TRUE)
+    t <- seq(1:samples)
+
+    case <- seq(1:case_subjects) |>
+        map(\(x) get_participant(feat_types, TRUE, t)) |>
+        bind_cols()
+    control <- seq(1:case_subjects) |>
+        map(\(x) get_participant(feat_types, FALSE, t)) |>
+        bind_cols()
+    full_df <- cbind(case, control)
+
+    # The random processes can generate negative counts which are not
+    # meaningful - not explicitly mentioned in the paper that I could see,
+    # but here they are set to 0
+    neg_entries <- full_df < 0
+    count_zero <- sum(neg_entries)
+    prop_zero <- count_zero / length(neg_entries)
+    if(sum(neg_entries) > 0) {
+        print(glue("{sum(neg_entries)} ({round(prop_zero, 1)}%) negative entries set to 0 "))
+    }
+    full_df[neg_entries] <- 0
+    
+    # Make sample names, and create metadata
+    sample_ids <- paste("Sample", seq(1:dim(full_df)[[2]]), sep="")
+    names(full_df) <- sample_ids
+    sample_times <- rep(t, case_subjects + control_subjects)
+    sample_phenotype <- c(
+        rep(rep("Case", samples), case_subjects),
+        rep(rep("Control", samples), control_subjects)
+    )
+    subject_ids <- paste(
+        "Subject",
+        (seq(1:dim(full_df)[[2]]) - 1) %/% samples,
+        sep = ""
+    )
+    meta_df = data.frame(
+        SubjectID = subject_ids,
+        SampleID = sample_ids,
+        Phenotype = sample_phenotype,
+        Timepoint = sample_times
+    )
+    return(list(
+        matrix = full_df,
+        metadata = meta_df
+    ))
+}
+
+example <- get_dataset()
+example$matrix |> head()
+example$metadata |> head()
+```
+
+These methods allow generation of simulated datasets as described in the paper.
+
+It appears that 1000 simulations were run for the CTF comparisons.
+We will output 1000 simulated matrices, with each having 0.1 to 0.7 sparsity
+introduced.
+
+## Output datasets with sparsity
+```{r}
+sparsity <- function(mat) {
+    mat_n <- dim(mat)[1] * dim(mat)[2]
+    return(sum(mat == 0) / mat_n)
+}
+
+random_sparse <- function(mat, prop) {
+    start_sparse <- sparsity(mat)
+    mat_s <- mat
+    sample_len <- (dim(mat_s)[[1]] * dim(mat_s)[[2]])
+    zero_n <- ceiling(sample_len * prop)
+    zero_idx <- sample(
+        1:sample_len, 
+        zero_n,
+        replace = FALSE
+    )
+    bool_idx = rep(FALSE, sample_len)
+    bool_idx[zero_idx] <- TRUE
+    dim(bool_idx) <- dim(mat_s)
+    mat_s[bool_idx] <- 0
+
+    # Report sparsity
+    achieved_sparse <- sparsity(mat_s)
+    log_info(
+        "Starting sparsity: {start_sparse} | Requested sparsity: {prop} | Achieved sparsity: {achieved_sparse}")
+
+    return(
+        list(
+            requested_sparsity = prop,
+            achieved_sparsity = achieved_sparse,
+            matrix = mat_s
+        )
+    )
+}
+
+pth_sim_base <- file.path(".", "data", "simulated_new")
+file_md <- list()
+for(i in seq(1:1000)) {
+    dataset <- get_dataset()
+    for(s in seq(from = 0, to = 0.7, by = 0.1)) {
+        smat <- random_sparse(dataset$matrix, s)
+        dir_sim <- file.path(pth_sim_base, glue("sparsity_{s}"))
+        pth_sim <- file.path(dir_sim, glue("{i}.tsv"))
+        dir.create(dir_sim, recursive=TRUE)
+        file_md[[pth_sim]] <- c(
+            i=i,
+            requested_sparsity=smat$requested_sparsity,
+            achieved_sparsity=smat$achieved_sparsity,
+            output=pth_sim
+        )
+        write.table(smat$matrix, pth_sim, sep = "\t")
+    }
+}
+
+tbl_md <- do.call(rbind, file_md)
+
+# Output simulation and sample metadata
+tbl_md |> 
+    as.data.frame() |>
+    write_delim(file.path("data", "simulated_new", "metadata.tsv"), delim="\t")
+# Sample metadata same for all simulation runs, as not recording which
+# feature is which type.
+dataset$metadata |>
+    # Accidentaly used different columns to provided LorDist sample data
+    # so rename them
+    rename(Label = Phenotype) |>
+    write_delim(
+        file.path("data", "simulated_new", "sample_metadata.tsv"),
+        delim="\t"
+    )
+```
