@@ -25,11 +25,6 @@ logger.addHandler(ch)
 
 
 class CTFBenchResults(NamedTuple):
-    subject_biplot: OrdinationResults
-    state_biplot: OrdinationResults
-    distance_matrix: DistanceMatrix
-    state_subject_ordination: pd.DataFrame
-    state_feature_orindation: pd.DataFrame
     permanova_distance_matrix: pd.Series
     permanova_subject_distance_matrix: pd.Series
     input_file: Path
@@ -170,7 +165,7 @@ def ctf_evaluate(
         sample_p, sample_f, subj_p, subj_f
     )
 
-    return CTFBenchResults(*ctf_results, pres_dist, pres_subj_dist, pth_mat)
+    return CTFBenchResults(pres_dist, pres_subj_dist, pth_mat)
 
 def run_benchmarks(
         sim_md: Path,
