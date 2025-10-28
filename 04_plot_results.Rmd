@@ -8,8 +8,8 @@ library(ggpubr)
 # Figures for LorDist and CTF benchmarks
 
 ```{r load-and-format}
-df_ctf = read_delim("results/simulated/ctf.tsv")
-df_lordist = read_delim("results/simulated/lordist.tsv")
+df_ctf = read_delim("results/simulated_new/ctf.tsv")
+df_lordist = read_delim("results/simulated_new/lordist.tsv")
 
 # Harmonise for plotting
 df_ctf_sample_long <- df_ctf |>
@@ -28,12 +28,115 @@ df_long <- rbind(df_ctf_sample_long, df_ctf_subject_long, df_lordist_long) |>
 df_long |> head()
 ```
 
-Make boplots comparing p and f values
+Make boxplots comparing p and f values
 
 ```{r plot}
 plt_p <- ggplot(
     df_long,
     aes(x = requested_sparsity, y = pval, fill = method)
 ) +
-geom_boxplot()
+geom_hline(yintercept = 0.05, linetype = "dashed", color = "grey") +
+geom_boxplot() +
+scale_y_log10() +
+theme_pubr()
+plt_p
+```
+
+Recreate plots from LorDist paper
+
+```{r line-point-plot}
+# Point at the mean, error bars are range.
+# Caption on original figure is unclear whether point is at mean and what error
+# bars mean
+df_plot <- df_long |>
+    group_by(requested_sparsity, method) |>
+    summarise(
+        mean_pval = mean(pval), mean_fval = mean(fval), 
+        min_fval = min(fval), min_pval = min(pval),
+        max_fval = max(fval), max_pval = max(pval),
+        quant_fval_0.1 = quantile(fval, 0.1),
+        quant_fval_0.9 = quantile(fval, 0.9), 
+        quant_pval_0.1 = quantile(pval, 0.1),
+        quant_pval_0.9 = quantile(pval, 0.9), 
+        mean_achieved_sparsity = mean(achieved_sparsity)
+    )
+
+scale_lordist <- scale_color_manual(
+    name = "Method",
+    values = c(
+        "LorDist" = "#F8766D",
+        "CTF - Sample Distances" = "#03408fff",
+        "CTF - Subject Ordination" = "#00BFC4"
+    )
+)
+plt_pval <- df_plot |>
+    ggplot(
+        aes(
+            x = requested_sparsity,
+            y = mean_pval,
+            ymin = quant_pval_0.1,
+            ymax = quant_pval_0.9,
+            color = method
+        )
+    ) +
+    geom_point(
+        size = 2,
+        position = position_dodge(width = 0.3)
+    ) +
+    geom_errorbar(
+        width = 0.25,
+        position = position_dodge(width = 0.3)
+    ) +
+    geom_line(
+        aes(group = method),
+        position = position_dodge(width = 0.3)
+    ) +
+    scale_lordist +
+    xlab("Sparsity") +
+    ylab("P value") +
+    geom_hline(yintercept = 0.05, color = "grey", linetype = "dashed") +
+    theme_pubr()
+
+ggsave("results/simulated/pval.png", plt_pval)
+
+plt_fval <- df_plot |>
+    ggplot(
+        aes(
+            x = requested_sparsity,
+            y = mean_fval,
+            ymin = quant_fval_0.1,
+            ymax = quant_fval_0.9,
+            color = method
+        )
+    ) +
+    geom_point(
+        size = 2,
+        position = position_dodge(width=0.3)
+    ) +
+    geom_errorbar(
+        width = 0.25,
+        position = position_dodge(width=0.3)
+    ) +
+    geom_line(
+        aes(group = method),
+        position = position_dodge(width=0.3)
+    ) +
+    scale_lordist +
+    xlab("Sparsity") +
+    ylab("F statistic") +
+    theme_pubr()
+
+ggsave("results/simulated/fval.png", plt_fval)
+
+plt_combined <- plt_fval +
+    plt_pval +
+    plot_layout(guides = 'collect') &
+    theme(legend.position = "top")
+ggsave(
+    "results/simulated/combined_fval_pval.png",
+    plt_combined,
+    height = 3,
+    width = 6
+)
+plt_combined
 ```

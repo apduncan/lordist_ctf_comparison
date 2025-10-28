@@ -59,6 +59,8 @@ taxon_three <- function(t, case) {
 A quick visualisation to check our functions are working roughly as intened
 
 ```{r}
+# This is a slightly wasteful way of doing it on reflection - could just
+# plot the values across continuous time on the xaxis.
 df_one <- seq(1:100) |>
     map(\(x) {
         taxon_one(seq(1:10), FALSE) |> as.data.frame() |> t() |> as.data.frame()
@@ -95,26 +97,49 @@ df_three_ctrl <- seq(1:100) |>
     pivot_longer(V1:V10, names_to = "timepoint", values_to = "abd") |>
     mutate(taxon = "Three - Control", tax_grp = "Three")
 df_long <- rbind(
-    df_one, df_two_ctrl, df_two_case, df_three_case, df_three_ctrl) |>
+    df_one |> mutate(taxon = "One - Control"),
+    df_one |> mutate(taxon = "One - Case"),
+    df_two_ctrl, df_two_case, df_three_case, df_three_ctrl) |>
     mutate(
-        timepoint_num = gsub("V", "", timepoint) |> as.numeric()
+        timepoint_num = gsub("V", "", timepoint) |> as.numeric(),
+        phenotype = map_chr(taxon, function(x) {
+            if(grepl("Control", x)) {return("Control")}
+            if(grepl("Case", x)) {return("Case")}
+            return("Error")
+        }),
+        phenotype = fct_relevel(phenotype, "Control", "Case")
     )
-
 df_long
 ```
 
 ```{r}
 plt_taxa <- ggplot(
     df_long,
-    aes(x = timepoint_num, y = abd, fill = taxon, color=taxon)
+    aes(
+        x = timepoint_num,
+        y = abd,
+        group = taxon,
+        color = phenotype,
+        linetype = tax_grp)
 ) +
-    geom_point() +
+    # geom_point() +
     geom_smooth() +
-    facet_wrap(~tax_grp, ncol=1, scales="free_y") +
+    facet_wrap(~phenotype, nrow=1, scales="free_y") +
     ylab("Abundance") +
     xlab("Timepoint") +
-    ggtitle("Taxa simulation outputs")
-    ggsave("results/simulated/function_check.png", plt_taxa)
+    ggtitle("Taxa simulation outputs") +
+    ylim(0, 150) +
+    guides(
+        color = "none",
+        linetype = guide_legend(title="Taxon")
+    ) +
+    theme_pubr()
+    ggsave(
+        "results/simulated/function_check.png",
+        width = 6, 
+        height = 3,
+        scale = 1.5
+    )
 plt_taxa
 ```
 
