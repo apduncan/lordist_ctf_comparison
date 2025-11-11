@@ -101,4 +101,4 @@ These results are shown in `06_check_high_sparsity.Rmd`
 
 Separation is clear on axis 1 of the Bray-Curtis results, while a less
 clear separation is only evident on axes 5/6 of the LorDist based ordination 
-[(figure)](results/pcoa_compare.png).
+[(figure)](results/simulated/pcoa_compare.png).
