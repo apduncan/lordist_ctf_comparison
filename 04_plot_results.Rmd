@@ -1,3 +1,11 @@
+---
+title: "Plot Benchmark Results"
+author: "Anthony Duncan"
+output:
+    html_document:
+        self_contained: yes
+---
+
 ```{r setup}
 library(tidyverse)
 library(ggplot2)
@@ -10,6 +18,7 @@ library(ggpubr)
 ```{r load-and-format}
 df_ctf = read_delim("results/simulated_new/ctf.tsv")
 df_lordist = read_delim("results/simulated_new/lordist.tsv")
+df_bc = read_delim("results/simulated_new/bc.tsv")
 
 # Harmonise for plotting
 df_ctf_sample_long <- df_ctf |>
@@ -20,22 +29,29 @@ df_ctf_subject_long <- df_ctf |>
     select(subject_f, subject_p, output, requested_sparsity, achieved_sparsity) |>
     rename(pval = subject_p, fval = subject_f) |>
     mutate(method = "CTF - Subject Ordination")
+df_bc_long <- df_bc |>
+    select(fval, pval, output, requested_sparsity, achieved_sparsity) |>
+    mutate(method = "Mean Bray-Curtis")
 df_lordist_long <- df_lordist |>
     select(fval, pval, output, requested_sparsity, achieved_sparsity) |>
     mutate(method = "LorDist")
-df_long <- rbind(df_ctf_sample_long, df_ctf_subject_long, df_lordist_long) |>
+df_long <- rbind(
+    df_ctf_sample_long, df_ctf_subject_long, df_lordist_long, df_bc_long
+) |>
     mutate(requested_sparsity = as.factor(requested_sparsity))
 df_long |> head()
 ```
 
-Make boxplots comparing p and f values
+Make boxplots comparing p values
 
-```{r plot}
+```{r plot, fig.width=8}
 plt_p <- ggplot(
     df_long,
     aes(x = requested_sparsity, y = pval, fill = method)
 ) +
 geom_hline(yintercept = 0.05, linetype = "dashed", color = "grey") +
+xlab("Sparsity") +
+ylab("P value") +
 geom_boxplot() +
 scale_y_log10() +
 theme_pubr()
@@ -44,13 +60,14 @@ plt_p
 
 Recreate plots from LorDist paper
 
-```{r line-point-plot}
+```{r line-point-plot, fig.width=8}
 # Point at the mean, error bars are range.
 # Caption on original figure is unclear whether point is at mean and what error
 # bars mean
 df_plot <- df_long |>
     group_by(requested_sparsity, method) |>
     summarise(
+        median_pval = median(pval), median_fval = median(fval),
         mean_pval = mean(pval), mean_fval = mean(fval), 
         min_fval = min(fval), min_pval = min(pval),
         max_fval = max(fval), max_pval = max(pval),
@@ -66,14 +83,15 @@ scale_lordist <- scale_color_manual(
     values = c(
         "LorDist" = "#F8766D",
         "CTF - Sample Distances" = "#03408fff",
-        "CTF - Subject Ordination" = "#00BFC4"
+        "CTF - Subject Ordination" = "#00BFC4",
+        "Mean Bray-Curtis" = "#4c5152ff"
     )
 )
 plt_pval <- df_plot |>
     ggplot(
         aes(
             x = requested_sparsity,
-            y = mean_pval,
+            y = median_pval,
             ymin = quant_pval_0.1,
             ymax = quant_pval_0.9,
             color = method
@@ -103,7 +121,7 @@ plt_fval <- df_plot |>
     ggplot(
         aes(
             x = requested_sparsity,
-            y = mean_fval,
+            y = median_fval,
             ymin = quant_fval_0.1,
             ymax = quant_fval_0.9,
             color = method
@@ -122,8 +140,9 @@ plt_fval <- df_plot |>
         position = position_dodge(width=0.3)
     ) +
     scale_lordist +
+    scale_y_log10(n.breaks = 6) +
     xlab("Sparsity") +
-    ylab("F statistic") +
+    ylab("Pseudo-F statistic") +
     theme_pubr()
 
 ggsave("results/simulated/fval.png", plt_fval)
@@ -135,6 +154,7 @@ plt_combined <- plt_fval +
 ggsave(
     "results/simulated/combined_fval_pval.png",
     plt_combined,
+    scale = 1.5,
     height = 3,
     width = 6
 )

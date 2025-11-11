@@ -35,9 +35,9 @@ taxon_two <- function(t, case) {
         # Calculate in parts to keep clearer in my head
         a <- pi/(1+exp(-t + 4))
         return(
-            10 * (
+            (10 * (
                 (a * b) + 10
-            ) + noise
+            )) + noise
         )
     } else {
         return((10 * (b + 10)) + noise)
@@ -243,6 +243,37 @@ example$metadata |> head()
 
 These methods allow generation of simulated datasets as described in the paper.
 
+## Visualise full dataset
+As an intuitive check, we can visualise the abundance of each taxon in 
+each participant across time, and check that it is following one of the
+expected functions
+
+```{r}
+plt_taxa <- example$matrix |>
+    rownames_to_column("FeatureID") |>
+    pivot_longer(-FeatureID, names_to="SampleID") |>
+    left_join(example$metadata, join_by(SampleID == SampleID)) |>
+    ggplot(
+        aes(x = Timepoint, y = value)
+    ) +
+    geom_line(
+        aes(group = SubjectID, color = Phenotype), linewidth=0.05, alpha=0.5
+    ) +
+    geom_smooth(
+        aes(color = Phenotype)
+    ) +
+    facet_wrap(~FeatureID, ncol = 10) +
+    theme_pubr() +
+    ylab("Count") +
+    theme(
+        axis.ticks = element_blank(),
+        axis.text = element_blank()
+    )
+ggsave("results/simulated/taxa_plots.png", dpi=300, width=11, height=21)
+```
+
+These plots all look correct - they follow one of the defined functions.
+
 It appears that 1000 simulations were run for the CTF comparisons.
 We will output 1000 simulated matrices, with each having 0.1 to 0.7 sparsity
 introduced.
@@ -318,4 +349,23 @@ dataset$metadata |>
         file.path("data", "simulated_new", "sample_metadata.tsv"),
         delim="\t"
     )
+```
+
+### Very high sparsity simulation
+Simulate datasets at very high sparsity for visualisation of Bray-Curtis and
+LorDist performance
+
+```{r}
+set.seed(4298)
+root_data <- get_dataset()
+pth_sim_base <- file.path("data", "simulated_high")
+for(s in c(0.8, 0.9, 0.95)) {
+  smat <- random_sparse(root_data$matrix, s)
+  dir_sim <- file.path(pth_sim_base, glue("sparsity_{s}"))
+  pth_sim <- file.path(dir_sim, "1.tsv")
+  dir.create(dir_sim, recursive=TRUE)
+  write.table(smat$matrix, pth_sim, sep = "\t")
+}
+root_data$metadata |>
+  write_delim(file.path(pth_sim_base, "sample_metadata.tsv"))
 ```

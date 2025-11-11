@@ -14,7 +14,7 @@ library(logger)
 show_usage <- function() {
   log_info("Run Mean Bray-Curtis benchmarks for simulated data.")
   log_info("Usage:")
-  log_info("02_lordist_benchmark.R path/to/simulation_metdata.tsv path/to/subject_metadata.tsv path/to_output.tsv")
+  log_info("02b_bc_benchmark.R path/to/simulation_metdata.tsv path/to/subject_metadata.tsv path/to_output.tsv")
 }
 
 args <- commandArgs(trailingOnly = TRUE)
