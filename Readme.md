@@ -60,14 +60,14 @@ This is implemented in `03b_bc_benchmark.R`.
 Again usage is available with `--help`.
 
 PERMANOVA results from the methods are combined and plotted in 
-`04_plot_results.Rmd` [(rendered version)](04_plot_results.html).
+`04_plot_results.Rmd` [(rendered version)](04_plot_results.pdf).
 
 ## Additional exploration
 ### Validation of simulated taxa
 To check no errors were being introduced while adding sparsity, we check
 equivalence of non-zero entries in all matrices at different levels of sparsity,
 find them to be equivalent in `06_check_high_sparsity.Rmd` 
-[(rendered version)](06_check_high_sparsity.html).
+[(rendered version)](06_check_high_sparsity.pdf).
 
 To check how evident the abundance patterns of simulated taxa are at high
 levels of sparsity, we produce plots for one example matrix at 70%
@@ -88,7 +88,7 @@ described methods, though the data in the repository may not be the
 same as was used in simulation, but it is similar in structure (number of
 individual, timepoints etc).
 
-This is performed in `06_check_high_sparsity.Rmd` [(rendered version)](06_check_high_sparsity.html).
+This is performed in `06_check_high_sparsity.Rmd` [(rendered version)](06_check_high_sparsity.pdf).
 
 ### Ordination at high sparsity
 We performed PCoA on LorDist distances and mean Bray-Curtis dissimilarties,
@@ -97,7 +97,7 @@ phenotypes when at high levels of sparsity.
 We used a single matrix at 70% sparsity.
 
 These results are shown in `06_check_high_sparsity.Rmd`
-[(rendered version)](06_check_high_sparsity.html).
+[(rendered version)](06_check_high_sparsity.pdf).
 
 Separation is clear on axis 1 of the Bray-Curtis results, while a less
 clear separation is only evident on axes 5/6 of the LorDist based ordination 
